@@ -12,4 +12,6 @@
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 VENV_PYTHON="/your-folder-path/venv/bin/python"
-SCRIPT_PATH="/your-folder-path/exifedit.py" $@
+SCRIPT_PATH="/your-folder-path/exifedit.py" 
+
+"$VENV_PYTHON" "$SCRIPT_PATH" "$@"
