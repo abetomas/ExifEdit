@@ -16,7 +16,7 @@ This is a GUI front-end for the excellent *exiftool* of Phil Harvey.   It was in
 * Pillow            (pip install Pillow)  
 * pillow-heif    (pip install pillow-heif)   # optional – HEIC preview  
 ## Usage :   
->    $  python3 exifedit.py [file]  
+>     $  python3 exifedit.py [file]  
 >
 >* Profiles are stored in ~/.exifeditor_profiles.json  
 >* exiftool must be on PATH  
