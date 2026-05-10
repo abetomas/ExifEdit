@@ -1,8 +1,25 @@
 <!--
+Enable Finder 'Open With > Exif Edit'
 Change info.plist to enable opening of image files from Finder 'Open With > Exif Edit'
 
-Open the Info.plist inside your .app bundle 
+Note: 
+(a) Automator app must have been created previously
+(b) see automator.script file
+
+Steps:
+(1) Open the Info.plist inside your .app bundle 
 (right-click app → Show Package Contents → Contents → Info.plist) and replace that entire CFBundleDocumentTypes block with settings below:
+
+(2) Refresh Finder (assuming app-name is ExifEdit.app)
+
+bash
+/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f /Applications/ExifEdit.app
+
+and/or
+
+bash
+killall Finder
+
 -->
 
 <key>CFBundleDocumentTypes</key>
