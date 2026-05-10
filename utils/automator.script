@@ -1,0 +1,15 @@
+#!/bin/zsh
+
+# Automator script for ExifEdit
+#
+# Notes: 
+# 
+# (c) adds homebrew to PATH
+# (b) uses python venv 
+# (a) $@ to accept input file
+#
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+VENV_PYTHON="/your-folder-path/venv/bin/python"
+SCRIPT_PATH="/your-folder-path/exifedit.py" $@
