@@ -85,12 +85,13 @@ except ImportError:
     HAS_HEIF = False
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-PROFILES_FILE = Path.home() / ".exifeditor_profiles.json"
-DATETIME_FMT  = "%Y:%m:%d %H:%M:%S"
-THUMB_SIZE    = 160
 
 APP_VERSION   = "1.1.1"
 APP_DATE      = "May 09, 2026"
+
+PROFILES_FILE = Path.home() / ".exifeditor_profiles.json"
+DATETIME_FMT  = "%Y:%m:%d %H:%M:%S"
+THUMB_SIZE    = 160
 
 # shared thread pool — lives for the whole process lifetime
 _POOL = ThreadPoolExecutor(max_workers=4)
