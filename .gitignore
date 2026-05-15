@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# General
+*.log
+*.tmp
+*.swp
+*~
+.DS_Store
+
+# If you're using Python (common for Exif tools)
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+
+# If you're using Node.js / JavaScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build / Dist folders
+build/
+dist/
+*.o
+*.exe
+
