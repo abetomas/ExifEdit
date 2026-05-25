@@ -26,3 +26,5 @@
 * Per-tag placeholder text for TagsList (slash "/") and HierarchicalSubject (pipe "|")  
 * Remove IPTC:Keywords input widget (confusing due to contextual display)  
 * Normalise keyword display after save: add space after comma separators to match exiftool/Raw EXIF output format  
+### v-1.1.2	2026-05-20   
+* Fix GPS save: write only XMP:GPSLatitude / XMP:GPSLongitude as decimal
