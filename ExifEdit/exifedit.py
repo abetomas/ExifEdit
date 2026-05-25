@@ -43,6 +43,10 @@ v-1.1.1         :   2026-05-09 Per-tag placeholder text for TagsList (slash "/")
                                Remove IPTC:Keywords input widget (confusing due to contextual display)
                                Normalise keyword display after save: add space after comma separators
                                to match exiftool/Raw EXIF output format
+v-1.1.2         :   2026-05-20 Fix GPS save: write only XMP:GPSLatitude / XMP:GPSLongitude as decimal
+                               degrees — works for all formats including HEIC. Removed GPS: namespace
+                               args and _gps_pending entirely. Set original_vals before setText so
+                               textChanged cannot discard tags from dirty. Add Cmd+S shortcut.
 
 
 """
@@ -69,7 +73,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QInputDialog, QCompleter, QMenu,
 )
 from PyQt6.QtCore import Qt, QSize, QMetaObject, Q_ARG, pyqtSlot
-from PyQt6.QtGui import QPixmap, QImage, QFont, QIcon
+from PyQt6.QtGui import QPixmap, QImage, QFont, QIcon, QKeySequence, QShortcut
 
 try:
     from PIL import Image, ImageOps
@@ -86,8 +90,8 @@ except ImportError:
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-APP_VERSION   = "1.1.1"
-APP_DATE      = "May 09, 2026"
+APP_VERSION   = "1.1.2"
+APP_DATE      = "May 20, 2026"
 
 PROFILES_FILE = Path.home() / ".exifeditor_profiles.json"
 DATETIME_FMT  = "%Y:%m:%d %H:%M:%S"
@@ -363,6 +367,11 @@ def parse_exif(stdout):
             else:
                 data[key] = v
 
+        def _store_no_overwrite(key, v):
+            """Store only if key not already populated (e.g. Composite fallback)."""
+            if not data.get(key):
+                data[key] = v
+
         _store(bare, val)
         if xmp_key:
             _store(xmp_key, val)
@@ -370,6 +379,14 @@ def parse_exif(stdout):
             _store(xmp_full_key, val)
         if iptc_key:
             _store(iptc_key, val)
+        if tag.startswith("["):
+            end = tag.find("]")
+            group = tag[1:end]
+            if group == "Composite":
+                # Store under Composite: key; also fill bare key as fallback
+                # (some HEIC files only expose GPS via Composite group)
+                _store(f"Composite:{bare}", val)
+                _store_no_overwrite(bare, val)
     return data
 
 def _normalise_keywords(val: str) -> str:
@@ -734,6 +751,9 @@ class ExifEditor(QMainWindow):
         splitter.setStretchFactor(0, 0); splitter.setStretchFactor(1, 1)
         splitter.setSizes([300, 1100])
 
+        # ── Keyboard shortcuts ───────────────────────────────────────────────
+        QShortcut(QKeySequence.StandardKey.Save, self, activated=self._save_changes)
+
     # ── thumbnail / list context menu ─────────────────────────────────────────
     def _grid_context_menu(self, pos):
         """Right-click context menu on thumbnail/list items."""
@@ -1044,37 +1064,26 @@ class ExifEditor(QMainWindow):
         except Exception:
             QMessageBox.warning(self, "Invalid GPS",
                 "Expected:  lat, lon  e.g. 22.596431, 59.434489"); return
-        
-        self._set_val("XMP:GPSLatitude",  f"{lat:.8f}")
-        self._set_val("XMP:GPSLongitude", f"{lon:.8f}")
-        # Force dirty regardless of original_vals comparison
-        self.dirty.update({"XMP:GPSLatitude", "XMP:GPSLongitude"})
-        self.original_vals["XMP:GPSLatitude"]  = ""   # ensure _dirty_line won't drop it
+
+        # Write only XMP decimal tags — works for all formats including HEIC.
+        # Set original_vals BEFORE setText so textChanged doesn't discard from dirty.
+        self.original_vals["XMP:GPSLatitude"]  = ""
         self.original_vals["XMP:GPSLongitude"] = ""
-        
+        self._set_val("XMP:GPSLatitude",  f"{lat:.14f}")
+        self._set_val("XMP:GPSLongitude", f"{lon:.14f}")
+        self.dirty.update({"XMP:GPSLatitude", "XMP:GPSLongitude"})
+
+        # Update the readonly DMS display fields (cosmetic only, never written)
         lat_dms, lat_ref = decimal_to_dms(lat, True)
         lon_dms, lon_ref = decimal_to_dms(lon, False)
-        # Update display-only readonly fields
-        for t, v in [("GPSLatitude",lat_dms), ("GPSLatitudeRef",lat_ref),
-                     ("GPSLongitude",lon_dms), ("GPSLongitudeRef",lon_ref)]:
+        for t, v in [("GPSLatitude", lat_dms), ("GPSLatitudeRef", lat_ref),
+                     ("GPSLongitude", lon_dms), ("GPSLongitudeRef", lon_ref)]:
             w = self.tag_widgets.get(t)
-            if isinstance(w, QLineEdit): w.setText(v)
-        # These are what exiftool actually needs to write GPS EXIF data
-        for t, v in [("GPSLatitude", f"{lat:.8f}"), ("GPSLatitudeRef", lat_ref),
-                     ("GPSLongitude", f"{lon:.8f}"), ("GPSLongitudeRef", lon_ref)]:
-            self.original_vals[t] = ""
-            self.dirty.add(t)
-            # Store decimal value for save
-            if t not in self.tag_widgets:
-                self.tag_widgets[t] = None
-        # Store actual values for _get_val during save
-        self._gps_pending = {
-            "GPSLatitude": f"{lat:.8f}", "GPSLatitudeRef": lat_ref,
-            "GPSLongitude": f"{lon:.8f}", "GPSLongitudeRef": lon_ref,
-        }
-        self.gps_edit.clear(); self._upd_status()
-        
-        
+            if isinstance(w, QLineEdit):
+                w.setText(v)
+
+        self.gps_edit.clear()
+        self._upd_status()
         self.status_bar.showMessage(f"GPS set: {lat:.6f}, {lon:.6f}")
 
     # ── date picker ───────────────────────────────────────────────────────────
@@ -1097,32 +1106,24 @@ class ExifEditor(QMainWindow):
         if not self.dirty:
             QMessageBox.information(self, "No changes", "No edits to save."); return
 
-        gps = getattr(self, "_gps_pending", {})
         ext = Path(self.current_file).suffix.lower()
         iptc_unsupported = ext in (".heic", ".heif", ".png")
         args = []
         for t in self.dirty:
             if iptc_unsupported and t in IPTC_ONLY_TAGS:
-                continue   # silently skip — field is greyed out but guard anyway
-            raw = gps[t] if t in gps else self._get_val(t)
+                continue
+            raw = self._get_val(t)
             args.extend(_keyword_args(t, raw))
 
-        # -sep "," globally: exiftool splits comma-joined keyword values into lists.
-        # -d sets the date format for datetime tags.
-        # Both must come before any tag args.
         args = ["-sep", ",", "-d", DATETIME_FMT] + args
         args += ["-overwrite_original", self.current_file]
         stdout, stderr = run_exiftool(*args)
 
-        # Strict success check: exiftool always prints "X image files updated" on success.
-        # Do NOT match on "image" alone — that matches filenames and error messages.
-        import re
-        success = bool(re.search(r"\d+\s+image\s+files?\s+updated", stdout.lower()))
+        import re as _re
+        success = bool(_re.search(r"\d+\s+image\s+files?\s+updated", stdout.lower()))
         if success:
             for t in list(self.dirty):
                 raw = self._get_val(t)
-                # Normalise keyword tags: ensure consistent "tag1, tag2" spacing
-                # so the displayed value matches what exiftool stores/shows.
                 if t in KEYWORD_TAGS:
                     raw = ", ".join(
                         k.strip() for k in raw.replace("\n", ",").split(",") if k.strip()
@@ -1130,16 +1131,13 @@ class ExifEditor(QMainWindow):
                     self._set_val(t, raw)
                 self.original_vals[t] = raw
             self.dirty.clear()
-            self._gps_pending = {}
             self.status_bar.showMessage(f"✓ Saved to {Path(self.current_file).name}")
-            # Reload to refresh computed/readonly fields (e.g. GPSAltitude display)
             self._load_exif(self.current_file)
         else:
             full_cmd = " ".join(args)
             msg = stderr or stdout or "exiftool returned no output"
             QMessageBox.critical(self, "Save failed",
                 f"exiftool said:\n{msg}\n\nFull command:\nexiftool {full_cmd}")
-
     def _revert(self):
         if not self.dirty: return
         if QMessageBox.question(self, "Revert", "Discard all unsaved changes?") == QMessageBox.StandardButton.Yes:
