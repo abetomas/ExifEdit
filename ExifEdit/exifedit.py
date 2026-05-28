@@ -47,7 +47,7 @@ v-1.1.2         :   2026-05-20 Fix GPS save: write only XMP:GPSLatitude / XMP:GP
                                degrees — works for all formats including HEIC. Removed GPS: namespace
                                args and _gps_pending entirely. Set original_vals before setText so
                                textChanged cannot discard tags from dirty. Add Cmd+S shortcut.
-
+v-1.1.3         :   2026-05-27 When image is double-clicked, open in Preview
 
 """
 
@@ -698,6 +698,7 @@ class ExifEditor(QMainWindow):
         self.file_grid.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.file_grid.setWordWrap(True); self.file_grid.setSpacing(4)
         self.file_grid.itemSelectionChanged.connect(self._on_sel_changed)
+        self.file_grid.itemDoubleClicked.connect(self._open_item_in_preview)
         self.file_grid.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.file_grid.customContextMenuRequested.connect(self._grid_context_menu)
         ll.addWidget(self.file_grid)
@@ -705,6 +706,7 @@ class ExifEditor(QMainWindow):
         self.file_list = QListWidget()
         self.file_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.file_list.itemSelectionChanged.connect(self._on_sel_changed)
+        self.file_list.itemDoubleClicked.connect(self._open_item_in_preview)
         self.file_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.file_list.customContextMenuRequested.connect(self._grid_context_menu)
         self.file_list.hide()
@@ -791,6 +793,14 @@ class ExifEditor(QMainWindow):
         fm_label = "Reveal in Finder" if OS == "Darwin" else "Reveal in File Manager"
         menu.addAction(fm_label, lambda f=fp: reveal_in_filemanager(f))
         menu.exec(active.viewport().mapToGlobal(pos))
+
+    # ── double-click: open in Preview (macOS default) ─────────────────────────
+    def _open_item_in_preview(self, item):
+        """Double-clicking a thumbnail or list item opens it with the OS default
+        application — Preview on macOS, matching the Finder double-click behaviour."""
+        fp = item.data(Qt.ItemDataRole.UserRole)
+        if fp:
+            open_with_default(fp)
 
     # ── view toggle ───────────────────────────────────────────────────────────
     def _toggle_view(self, checked):
